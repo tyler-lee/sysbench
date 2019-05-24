@@ -113,7 +113,8 @@ typedef enum
   SQL_TYPE_DATETIME,
   SQL_TYPE_TIMESTAMP,
   SQL_TYPE_CHAR,
-  SQL_TYPE_VARCHAR
+  SQL_TYPE_VARCHAR,
+  SQL_TYPE_UNTYPED_STRING
 } sql_bind_type_t;
 
 typedef struct
@@ -172,7 +173,8 @@ sysbench.sql.type =
       DATETIME = ffi.C.SQL_TYPE_DATETIME,
       TIMESTAMP = ffi.C.SQL_TYPE_TIMESTAMP,
       CHAR = ffi.C.SQL_TYPE_CHAR,
-      VARCHAR = ffi.C.SQL_TYPE_VARCHAR
+      VARCHAR = ffi.C.SQL_TYPE_VARCHAR,
+      UNTYPED_STRING = ffi.C.SQL_TYPE_UNTYPED_STRING
    }
 
 -- Initialize a given SQL driver and return a handle to it to create
@@ -344,6 +346,12 @@ function sql_param.set(self, value)
       len = self.max_len < len and self.max_len or len
       ffi.copy(self.buffer, value, len)
       self.data_len[0] = len
+   elseif btype == sql_type.UNTYPED_STRING
+   then
+      local len = #value
+      len = self.max_len < len and self.max_len or len
+      ffi.copy(self.buffer, value, len)
+      self.data_len[0] = len
    else
       error("Unsupported argument type: " .. btype, 2)
    end
@@ -396,6 +404,11 @@ function statement_methods.bind_create(self, btype, max_len)
       btype == sql_type.VARCHAR
    then
       param.type = sql_type.VARCHAR
+      param.buffer = ffi.new('char[?]', max_len)
+      param.max_len = max_len
+   elseif btype == sql_type.UNTYPED_STRING
+   then
+      param.type = sql_type.UNTYPED_STRING
       param.buffer = ffi.new('char[?]', max_len)
       param.max_len = max_len
    else

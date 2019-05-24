@@ -81,6 +81,7 @@ db_pgsql_bind_map_t db_pgsql_bind_map[] =
   {DB_TYPE_TIMESTAMP, 1114},
   {DB_TYPE_CHAR,      18},
   {DB_TYPE_VARCHAR,   1043},
+  {DB_TYPE_UNTYPED_STRING,      0},
   {DB_TYPE_NONE,      0}
 };
 
@@ -184,7 +185,7 @@ int pgsql_drv_init(void)
   pgsql_drv_caps.prepared_statements = 1;
   if (db_globals.ps_mode != DB_PS_MODE_DISABLE)
     use_ps = 1;
-  
+
   return 0;
 }
 
@@ -195,7 +196,7 @@ int pgsql_drv_init(void)
 int pgsql_drv_describe(drv_caps_t *caps)
 {
   PGconn *con;
-  
+
   *caps = pgsql_drv_caps;
 
   /* Determine the server version */
@@ -219,7 +220,7 @@ int pgsql_drv_describe(drv_caps_t *caps)
     caps->multi_rows_insert = 0;
 
   PQfinish(con);
-  
+
   return 0;
 }
 
@@ -253,7 +254,7 @@ int pgsql_drv_connect(db_conn_t *sb_conn)
   /* Silence the default notice receiver spitting NOTICE message to stderr */
   PQsetNoticeProcessor(con, empty_notice_processor, NULL);
   sb_conn->ptr = con;
-  
+
   return 0;
 }
 
@@ -341,7 +342,7 @@ int pgsql_drv_prepare(db_stmt_t *stmt, const char *query, size_t len)
   /* Store the query to be prepared later on the first bind_param call */
   stmt->query = strdup(buf);
   free(buf);
-  
+
   pgstmt = (pg_stmt_t *)calloc(1, sizeof(pg_stmt_t));
   if (pgstmt == NULL)
     goto error;
@@ -359,7 +360,7 @@ int pgsql_drv_prepare(db_stmt_t *stmt, const char *query, size_t len)
     /* Do prepare */
     pgres = PQprepare(con, pgstmt->name, stmt->query, pgstmt->nparams,
                       NULL);
-    
+
     if (PQresultStatus(pgres) != PGRES_COMMAND_OK)
     {
       log_text(LOG_FATAL, "PQprepare() failed: %s", PQerrorMessage(con));
@@ -377,7 +378,7 @@ int pgsql_drv_prepare(db_stmt_t *stmt, const char *query, size_t len)
   }
 
   stmt->ptr = pgstmt;
-  
+
   return 0;
 
  error:
@@ -395,7 +396,7 @@ int pgsql_drv_bind_param(db_stmt_t *stmt, db_bind_t *params, size_t len)
   PGresult     *pgres;
   pg_stmt_t    *pgstmt;
   unsigned int i;
-  
+
   if (con == NULL)
     return 1;
 
@@ -406,14 +407,14 @@ int pgsql_drv_bind_param(db_stmt_t *stmt, db_bind_t *params, size_t len)
     return 1;
   memcpy(stmt->bound_param, params, len * sizeof(db_bind_t));
   stmt->bound_param_len = len;
- 
+
   if (stmt->emulated)
     return 0;
 
   pgstmt = stmt->ptr;
   if (pgstmt->prepared)
     return 0;
-  
+
   /* Prepare statement here, since we need to know types of parameters */
   /* Validate parameters count */
   if ((unsigned)pgstmt->nparams != len)
@@ -447,7 +448,7 @@ int pgsql_drv_bind_param(db_stmt_t *stmt, db_bind_t *params, size_t len)
   pgstmt->pvalues = (char **)calloc(len, sizeof(char *));
   if (pgstmt->pvalues == NULL)
     return 1;
-      
+
   /* Allocate buffers for bind parameters */
   for (i = 0; i < len; i++)
   {
@@ -475,7 +476,7 @@ int pgsql_drv_bind_result(db_stmt_t *stmt, db_bind_t *params, size_t len)
   (void)stmt;
   (void)params;
   (void)len;
-  
+
   return 0;
 }
 
@@ -604,6 +605,7 @@ db_error_t pgsql_drv_execute(db_stmt_t *stmt, db_result_t *rs)
       switch (stmt->bound_param[i].type) {
         case DB_TYPE_CHAR:
         case DB_TYPE_VARCHAR:
+		case DB_TYPE_UNTYPED_STRING:
 
           len = stmt->bound_param[i].data_len[0];
 
@@ -769,7 +771,7 @@ int pgsql_drv_close(db_stmt_t *stmt)
 {
   pg_stmt_t *pgstmt = stmt->ptr;
   int       i;
-  
+
   if (pgstmt == NULL)
     return 1;
 

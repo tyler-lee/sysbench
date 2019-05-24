@@ -790,6 +790,7 @@ int db_print_value(db_bind_t *var, char *buf, int buflen)
       break;
     case DB_TYPE_CHAR:
     case DB_TYPE_VARCHAR:
+    case DB_TYPE_UNTYPED_STRING:
       n = snprintf(buf, buflen, "'%s'", (char *)var->buffer);
       break;
     case DB_TYPE_DATE:
