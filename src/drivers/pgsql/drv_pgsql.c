@@ -232,6 +232,44 @@ static void empty_notice_processor(void *arg, const char *msg)
 
 /* Connect to database */
 
+#include <unistd.h>
+int write_handle_to_pid_file(uintptr_t handle) {
+    FILE* fd = NULL;
+    int ret;
+	char filename[50] = {0};
+	sprintf(filename, "PQhandle_%d.txt", getpid());
+
+    fd = fopen(filename, "wb");
+    //if(!fd) return -1;
+    if(!fd) {
+		printf("%s,%d: fopen %s fail\n", __FUNCTION__, __LINE__, filename);
+		return -1;
+	}
+
+	ret = fwrite(&handle, 1, sizeof(handle), fd);
+    if(fd) fclose(fd);
+
+    return ret;
+}
+uintptr_t read_handle_from_pid_file() {
+    FILE* fd = NULL;
+	uintptr_t handle = 0;
+
+	char filename[50] = {0};
+	sprintf(filename, "PQhandle_%d.txt", getpid());
+
+    fd = fopen(filename, "rb");
+    //if(!fd) return 0;
+    if(!fd) {
+		printf("%s,%d: fopen %s fail\n", __FUNCTION__, __LINE__, filename);
+		return 0;
+	}
+
+    fread(&handle, 1, sizeof(handle), fd);
+    if(fd) fclose(fd);
+
+    return handle;
+}
 int pgsql_drv_connect(db_conn_t *sb_conn)
 {
   PGconn *con;
@@ -254,6 +292,11 @@ int pgsql_drv_connect(db_conn_t *sb_conn)
   /* Silence the default notice receiver spitting NOTICE message to stderr */
   PQsetNoticeProcessor(con, empty_notice_processor, NULL);
   sb_conn->ptr = con;
+
+  /* write data to file, return write bytes on success */
+  if (sizeof(uintptr_t) != write_handle_to_pid_file((uintptr_t)con)) {
+    log_text(LOG_FATAL, "Write connection handle to fail failed");
+  }
 
   return 0;
 }
